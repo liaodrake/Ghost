@@ -1,14 +1,13 @@
 var bodyParser      = require('body-parser'),
     config          = require('../config'),
     errors          = require('../errors'),
-    express         = require('express'),
     logger          = require('morgan'),
     path            = require('path'),
     routes          = require('../routes'),
+    serveStatic     = require('express').static,
     slashes         = require('connect-slashes'),
     storage         = require('../storage'),
     passport        = require('passport'),
-    oauth2orize     = require('oauth2orize'),
     utils           = require('../utils'),
     sitemapHandler  = require('../data/xml/sitemap/handler'),
 
@@ -38,29 +37,25 @@ middleware = {
     cacheControl: cacheControl,
     spamPrevention: spamPrevention,
     privateBlogging: privateBlogging,
+    oauth: oauth,
     api: {
-        cacheOauthServer: auth.cacheOauthServer,
         authenticateClient: auth.authenticateClient,
         authenticateUser: auth.authenticateUser,
         requiresAuthorizedUser: auth.requiresAuthorizedUser,
         requiresAuthorizedUserPublicAPI: auth.requiresAuthorizedUserPublicAPI,
-        generateAccessToken: auth.generateAccessToken,
         errorHandler: errors.handleAPIError
     }
 };
 
 setupMiddleware = function setupMiddleware(blogApp, adminApp) {
     var logging = config.logging,
-        corePath = config.paths.corePath,
-        oauthServer = oauth2orize.createServer();
+        corePath = config.paths.corePath;
 
-    // silence JSHint without disabling unused check for the whole file
     passport.use(new ClientPasswordStrategy(authStrategies.clientPasswordStrategy));
     passport.use(new BearerStrategy(authStrategies.bearerStrategy));
 
-    // Cache express server instance
-    middleware.api.cacheOauthServer(oauthServer);
-    oauth.init(oauthServer, spamPrevention.resetCounter);
+    // Initialize OAuth middleware
+    oauth.init();
 
     // Make sure 'req.secure' is valid for proxied requests
     // (X-Forwarded-Proto header will be checked, if present)
@@ -78,10 +73,20 @@ setupMiddleware = function setupMiddleware(blogApp, adminApp) {
     // Favicon
     blogApp.use(serveSharedFile('favicon.ico', 'image/x-icon', utils.ONE_DAY_S));
 
+    // Ghost-Url
+    blogApp.use(serveSharedFile('shared/ghost-url.js', 'application/javascript', utils.ONE_HOUR_S));
+    blogApp.use(serveSharedFile('shared/ghost-url.min.js', 'application/javascript', utils.ONE_HOUR_S));
+
     // Static assets
-    blogApp.use('/shared', express.static(path.join(corePath, '/shared'), {maxAge: utils.ONE_HOUR_MS}));
+    blogApp.use('/shared', serveStatic(
+        path.join(corePath, '/shared'),
+        {maxAge: utils.ONE_HOUR_MS, fallthrough: false}
+    ));
     blogApp.use('/content/images', storage.getStorage().serve());
-    blogApp.use('/public', express.static(path.join(corePath, '/built/public'), {maxAge: utils.ONE_YEAR_MS}));
+    blogApp.use('/public', serveStatic(
+        path.join(corePath, '/built/public'),
+        {maxAge: utils.ONE_YEAR_MS, fallthrough: false}
+    ));
 
     // First determine whether we're serving admin or theme content
     blogApp.use(decideIsAdmin);
@@ -89,7 +94,10 @@ setupMiddleware = function setupMiddleware(blogApp, adminApp) {
     blogApp.use(themeHandler.configHbsForContext);
 
     // Admin only config
-    blogApp.use('/ghost', express.static(config.paths.clientAssets, {maxAge: utils.ONE_YEAR_MS}));
+    blogApp.use('/ghost', serveStatic(
+        config.paths.clientAssets,
+        {maxAge: utils.ONE_YEAR_MS}
+    ));
 
     // Force SSL
     // NOTE: Importantly this is _after_ the check above for admin-theme static resources,

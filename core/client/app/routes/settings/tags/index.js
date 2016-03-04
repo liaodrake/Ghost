@@ -1,17 +1,20 @@
 import Ember from 'ember';
 import AuthenticatedRoute from 'ghost/routes/authenticated';
 
+const {
+    inject: {service}
+} = Ember;
+
 export default AuthenticatedRoute.extend({
+    mediaQueries: service(),
 
-    // HACK: ugly way of changing behaviour when on mobile
-    beforeModel: function () {
-        const firstTag = this.modelFor('settings.tags').get('firstObject'),
-              mobileWidth = this.controllerFor('settings.tags').get('mobileWidth'),
-              viewportWidth = Ember.$(window).width();
+    beforeModel() {
+        let firstTag = this.modelFor('settings.tags').get('firstObject');
 
-        if (firstTag && viewportWidth > mobileWidth) {
+        this._super(...arguments);
+
+        if (firstTag && !this.get('mediaQueries.maxWidth600')) {
             this.transitionTo('settings.tags.tag', firstTag);
         }
     }
-
 });

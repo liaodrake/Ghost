@@ -7,11 +7,8 @@ import {
 import validator from 'ghost/validators/nav-item';
 import { NavItem } from 'ghost/controllers/settings/navigation';
 
-var testInvalidUrl,
-    testValidUrl;
-
-testInvalidUrl = function (url) {
-    let navItem = NavItem.create({url: url});
+const testInvalidUrl = function (url) {
+    let navItem = NavItem.create({url});
 
     validator.check(navItem, 'url');
 
@@ -23,8 +20,8 @@ testInvalidUrl = function (url) {
     expect(navItem.get('hasValidated')).to.include('url');
 };
 
-testValidUrl = function (url) {
-    let navItem = NavItem.create({url: url});
+const testValidUrl = function (url) {
+    let navItem = NavItem.create({url});
 
     validator.check(navItem, 'url');
 
@@ -44,14 +41,6 @@ describe('Unit: Validator: nav-item', function () {
             message: 'You must specify a label'
         }]);
         expect(navItem.get('hasValidated')).to.include('label');
-    });
-
-    it('doesn\'t validate label if empty and last', function () {
-        let navItem = NavItem.create({last: true});
-
-        validator.check(navItem, 'label');
-
-        expect(validator.get('passed')).to.be.true;
     });
 
     it('requires url presence', function () {
@@ -98,14 +87,6 @@ describe('Unit: Validator: nav-item', function () {
         validUrls.forEach(function (url) {
             testValidUrl(url);
         });
-    });
-
-    it('doesn\'t validate url if empty and last', function () {
-        let navItem = NavItem.create({last: true});
-
-        validator.check(navItem, 'url');
-
-        expect(validator.get('passed')).to.be.true;
     });
 
     it('validates url and label by default', function () {

@@ -1,33 +1,38 @@
 import Ember from 'ember';
 
-export default Ember.Component.extend({
+const {
+    Component,
+    inject: {service}
+} = Ember;
+
+export default Component.extend({
     tagName: 'nav',
     classNames: ['gh-nav'],
     classNameBindings: ['open'],
 
-    config: Ember.inject.service(),
-    session: Ember.inject.service(),
-
     open: false,
 
-    mouseEnter: function () {
+    config: service(),
+    session: service(),
+
+    mouseEnter() {
         this.sendAction('onMouseEnter');
     },
 
     actions: {
-        toggleAutoNav: function () {
+        toggleAutoNav() {
             this.sendAction('toggleMaximise');
         },
 
-        openModal: function (modal) {
-            this.sendAction('openModal', modal);
+        showMarkdownHelp() {
+            this.sendAction('showMarkdownHelp');
         },
 
-        closeMobileMenu: function () {
+        closeMobileMenu() {
             this.sendAction('closeMobileMenu');
         },
 
-        openAutoNav: function () {
+        openAutoNav() {
             this.sendAction('openAutoNav');
         }
     }

@@ -8,6 +8,7 @@
 var _          = require('lodash'),
     bookshelf  = require('bookshelf'),
     config     = require('../../config'),
+    db         = require('../../data/db'),
     errors     = require('../../errors'),
     filters    = require('../../filters'),
     moment     = require('moment'),
@@ -18,12 +19,14 @@ var _          = require('lodash'),
     uuid       = require('node-uuid'),
     validation = require('../../data/validation'),
     plugins    = require('../plugins'),
+    i18n       = require('../../i18n'),
 
-    ghostBookshelf;
+    ghostBookshelf,
+    proto;
 
 // ### ghostBookshelf
 // Initializes a new Bookshelf instance called ghostBookshelf, for reference elsewhere in Ghost.
-ghostBookshelf = bookshelf(config.database.knex);
+ghostBookshelf = bookshelf(db.knex);
 
 // Load the Bookshelf registry plugin, which helps us avoid circular dependencies
 ghostBookshelf.plugin('registry');
@@ -39,6 +42,9 @@ ghostBookshelf.plugin(plugins.includeCount);
 
 // Load the Ghost pagination plugin, which gives us the `fetchPage` method on Models
 ghostBookshelf.plugin(plugins.pagination);
+
+// Cache an instance of the base model prototype
+proto = ghostBookshelf.Model.prototype;
 
 // ## ghostBookshelf.Model
 // The Base Model which other Ghost objects will inherit from,
@@ -135,7 +141,7 @@ ghostBookshelf.Model = ghostBookshelf.Model.extend({
         } else if (options.context && options.context.internal) {
             return 1;
         } else {
-            errors.logAndThrowError(new Error('missing context'));
+            errors.logAndThrowError(new Error(i18n.t('errors.models.base.index.missingContext')));
         }
     },
 
@@ -173,7 +179,8 @@ ghostBookshelf.Model = ghostBookshelf.Model.extend({
             }
         });
 
-        return attrs;
+        // @TODO upgrade bookshelf & knex and use serialize & toJSON to do this in a neater way (see #6103)
+        return proto.finalize.call(this, attrs);
     },
 
     sanitize: function sanitize(attr) {
@@ -299,7 +306,7 @@ ghostBookshelf.Model = ghostBookshelf.Model.extend({
         }
 
         if (options.order) {
-            options.order = self.parseOrderOption(options.order);
+            options.order = self.parseOrderOption(options.order, options.include);
         } else {
             options.order = self.orderDefaultOptions();
         }
@@ -458,10 +465,13 @@ ghostBookshelf.Model = ghostBookshelf.Model.extend({
         });
     },
 
-    parseOrderOption: function (order) {
+    parseOrderOption: function (order, include) {
         var permittedAttributes, result, rules;
 
         permittedAttributes = this.prototype.permittedAttributes();
+        if (include && include.indexOf('count.posts') > -1) {
+            permittedAttributes.push('count.posts');
+        }
         result = {};
         rules = order.split(',');
 

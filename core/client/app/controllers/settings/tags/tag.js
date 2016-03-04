@@ -1,19 +1,26 @@
 import Ember from 'ember';
 
-const {computed, inject} = Ember,
-      {alias} = computed;
+const {
+    Controller,
+    computed,
+    inject: {service, controller}
+} = Ember;
+const {alias} = computed;
 
-export default Ember.Controller.extend({
+export default Controller.extend({
+
+    showDeleteTagModal: false,
 
     tag: alias('model'),
     isMobile: alias('tagsController.isMobile'),
 
-    tagsController: inject.controller('settings.tags'),
-    notifications: inject.service(),
+    applicationController: controller('application'),
+    tagsController: controller('settings.tags'),
+    notifications: service(),
 
-    saveTagProperty: function (propKey, newValue) {
-        const tag = this.get('tag'),
-              currentValue = tag.get(propKey);
+    _saveTagProperty(propKey, newValue) {
+        let tag = this.get('tag');
+        let currentValue = tag.get(propKey);
 
         newValue = newValue.trim();
 
@@ -36,9 +43,39 @@ export default Ember.Controller.extend({
         });
     },
 
+    _deleteTag() {
+        let tag = this.get('tag');
+
+        return tag.destroyRecord().then(() => {
+            this._deleteTagSuccess();
+        }, (error) => {
+            this._deleteTagFailure(error);
+        });
+    },
+
+    _deleteTagSuccess() {
+        let currentRoute = this.get('applicationController.currentRouteName') || '';
+
+        if (currentRoute.match(/^settings\.tags/)) {
+            this.transitionToRoute('settings.tags.index');
+        }
+    },
+
+    _deleteTagFailure(error) {
+        this.get('notifications').showAPIError(error, {key: 'tag.delete'});
+    },
+
     actions: {
-        setProperty: function (propKey, value) {
-            this.saveTagProperty(propKey, value);
+        setProperty(propKey, value) {
+            this._saveTagProperty(propKey, value);
+        },
+
+        toggleDeleteTagModal() {
+            this.toggleProperty('showDeleteTagModal');
+        },
+
+        deleteTag() {
+            return this._deleteTag();
         }
     }
 });

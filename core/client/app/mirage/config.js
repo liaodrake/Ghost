@@ -1,6 +1,8 @@
+/* jscs:disable requireCamelCaseOrUpperCaseIdentifiers */
 import Ember from 'ember';
+import Mirage from 'ember-cli-mirage';
 
-let {isBlank} = Ember;
+const {$, isBlank} = Ember;
 
 function paginatedResponse(modelName, allModels, request) {
     let page = +request.queryParams.page || 1;
@@ -15,8 +17,8 @@ function paginatedResponse(modelName, allModels, request) {
     } else {
         limit = +limit;
 
-        let start = (page - 1) * limit,
-            end = start + limit;
+        let start = (page - 1) * limit;
+        let end = start + limit;
 
         models = allModels.slice(start, end);
         pages = Math.ceil(allModels.length / limit);
@@ -33,9 +35,9 @@ function paginatedResponse(modelName, allModels, request) {
     return {
         meta: {
             pagination: {
-                page: page,
-                limit: limit,
-                pages: pages,
+                page,
+                limit,
+                pages,
                 total: allModels.length,
                 next: next || null,
                 prev: prev || null
@@ -61,10 +63,34 @@ export default function () {
         };
     });
 
+    this.post('/authentication/passwordreset', function (db, request) {
+        // jscs:disable requireObjectDestructuring
+        let {passwordreset} = $.deparam(request.requestBody);
+        let email = passwordreset[0].email;
+        // jscs:enable requireObjectDestructuring
+
+        if (email === 'unknown@example.com') {
+            return new Mirage.Response(404, {}, {
+                errors: [
+                    {
+                        message: 'There is no user with that email address.',
+                        errorType: 'NotFoundError'
+                    }
+                ]
+            });
+        } else {
+            return {
+                passwordreset: [
+                    {message: 'Check your email for further instructions.'}
+                ]
+            };
+        }
+    });
+
     /* Download Count ------------------------------------------------------- */
 
     let downloadCount = 0;
-    this.get('http://ghost.org/count/', function () {
+    this.get('https://count.ghost.org/', function () {
         downloadCount++;
         return {
             count: downloadCount
@@ -101,7 +127,16 @@ export default function () {
 
     /* Roles ---------------------------------------------------------------- */
 
-    this.get('/roles/', 'roles');
+    this.get('/roles/', function (db, request) {
+        if (request.queryParams.permissions === 'assign') {
+            let roles = db.roles.find([1,2,3]);
+            return {roles};
+        }
+
+        return {
+            roles: db.roles
+        };
+    });
 
     /* Settings ------------------------------------------------------------- */
 
@@ -109,22 +144,22 @@ export default function () {
         let filters = request.queryParams.type.split(',');
         let settings = [];
 
-        filters.forEach(filter => {
+        filters.forEach((filter) => {
             settings.pushObjects(db.settings.where({type: filter}));
         });
 
         return {
+            settings,
             meta: {
                 filters: {
                     type: request.queryParams.type
                 }
-            },
-            settings: settings
+            }
         };
     });
 
     this.put('/settings/', function (db, request) {
-        let newSettings = JSON.parse(request.requestBody);
+        let newSettings = JSON.parse(request.requestBody).settings;
 
         db.settings.remove();
         db.settings.insert(newSettings);
@@ -140,7 +175,15 @@ export default function () {
     this.get('/slugs/post/:slug/', function (db, request) {
         return {
             slugs: [
-                {slug: request.params.slug.dasherize}
+                {slug: Ember.String.dasherize(decodeURIComponent(request.params.slug))}
+            ]
+        };
+    });
+
+    this.get('/slugs/user/:slug/', function (db, request) {
+        return {
+            slugs: [
+                {slug: Ember.String.dasherize(decodeURIComponent(request.params.slug))}
             ]
         };
     });
@@ -194,7 +237,7 @@ export default function () {
         tag = db.tags.insert(attrs);
 
         return {
-            tag: tag
+            tag
         };
     });
 
@@ -210,12 +253,12 @@ export default function () {
         // TODO: remove post_count unless requested?
 
         return {
-            tag: tag
+            tag
         };
     });
 
     this.put('/tags/:id/', function (db, request) {
-        let id = request.params.id;
+        let {id} = request.params;
         let [attrs] = JSON.parse(request.requestBody).tags;
         let record = db.tags.update(id, attrs);
 
@@ -252,6 +295,22 @@ export default function () {
     });
 
     this.get('/users/', 'users');
+
+    this.get('/users/slug/:slug/', function (db, request) {
+        let user = db.users.where({slug: request.params.slug});
+
+        return {
+            users: user
+        };
+    });
+
+    this.del('/users/:id/', 'user');
+
+    this.get('/users/:id', function (db, request) {
+        return {
+            users: [db.users.find(request.params.id)]
+        };
+    });
 }
 
 /*

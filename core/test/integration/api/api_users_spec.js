@@ -1,5 +1,4 @@
 /*globals describe, before, beforeEach, afterEach, it */
-/*jshint expr:true*/
 var testUtils       = require('../../utils'),
     should          = require('should'),
     sinon           = require('sinon'),
@@ -7,7 +6,7 @@ var testUtils       = require('../../utils'),
     _               = require('lodash'),
 
 // Stuff we are testing
-    ModelUser       = require('../../../server/models'),
+    models          = require('../../../server/models'),
     UserAPI         = require('../../../server/api/users'),
     mail            = require('../../../server/api/mail'),
 
@@ -39,7 +38,7 @@ describe('Users API', function () {
     it('dateTime fields are returned as Date objects', function (done) {
         var userData = testUtils.DataGenerator.forModel.users[0];
 
-        ModelUser.User.check({email: userData.email, password: userData.password}).then(function (user) {
+        models.User.check({email: userData.email, password: userData.password}).then(function (user) {
             return UserAPI.read({id: user.id});
         }).then(function (response) {
             response.users[0].created_at.should.be.an.instanceof(Date);
@@ -187,29 +186,29 @@ describe('Users API', function () {
                 .catch(done);
         });
 
-        it('can browse with include post_count', function (done) {
-            UserAPI.browse(_.extend({}, testUtils.context.admin, {include: 'post_count'})).then(function (response) {
+        it('can browse with include count.posts', function (done) {
+            UserAPI.browse(_.extend({}, testUtils.context.admin, {include: 'count.posts'})).then(function (response) {
                 should.exist(response);
                 testUtils.API.checkResponse(response, 'users');
                 should.exist(response.users);
                 response.users.should.have.length(7);
                 response.users.should.have.length(7);
 
-                testUtils.API.checkResponse(response.users[0], 'user', 'post_count');
-                testUtils.API.checkResponse(response.users[1], 'user', 'post_count');
-                testUtils.API.checkResponse(response.users[2], 'user', 'post_count');
-                testUtils.API.checkResponse(response.users[3], 'user', 'post_count');
-                testUtils.API.checkResponse(response.users[4], 'user', 'post_count');
-                testUtils.API.checkResponse(response.users[5], 'user', 'post_count');
-                testUtils.API.checkResponse(response.users[6], 'user', 'post_count');
+                testUtils.API.checkResponse(response.users[0], 'user', 'count');
+                testUtils.API.checkResponse(response.users[1], 'user', 'count');
+                testUtils.API.checkResponse(response.users[2], 'user', 'count');
+                testUtils.API.checkResponse(response.users[3], 'user', 'count');
+                testUtils.API.checkResponse(response.users[4], 'user', 'count');
+                testUtils.API.checkResponse(response.users[5], 'user', 'count');
+                testUtils.API.checkResponse(response.users[6], 'user', 'count');
 
-                response.users[0].post_count.should.eql(0);
-                response.users[1].post_count.should.eql(0);
-                response.users[2].post_count.should.eql(0);
-                response.users[3].post_count.should.eql(7);
-                response.users[4].post_count.should.eql(0);
-                response.users[5].post_count.should.eql(0);
-                response.users[6].post_count.should.eql(0);
+                response.users[0].count.posts.should.eql(0);
+                response.users[1].count.posts.should.eql(0);
+                response.users[2].count.posts.should.eql(0);
+                response.users[3].count.posts.should.eql(7);
+                response.users[4].count.posts.should.eql(0);
+                response.users[5].count.posts.should.eql(0);
+                response.users[6].count.posts.should.eql(0);
 
                 response.meta.pagination.should.have.property('page', 1);
                 response.meta.pagination.should.have.property('limit', 15);
@@ -237,7 +236,7 @@ describe('Users API', function () {
             } else {
                 testUtils.API.checkResponse(response.users[0], 'user');
             }
-            response.users[0].created_at.should.be.a.Date;
+            response.users[0].created_at.should.be.an.instanceof(Date);
         }
 
         it('Owner can read', function (done) {
@@ -300,7 +299,7 @@ describe('Users API', function () {
             response.users.should.have.length(1);
             testUtils.API.checkResponse(response.users[0], 'user');
             response.users[0].name.should.equal(newName);
-            response.users[0].updated_at.should.be.a.Date;
+            response.users[0].updated_at.should.be.an.instanceof(Date);
         }
 
         it('throws an error if there is an id mismatch', function (done) {
@@ -482,7 +481,7 @@ describe('Users API', function () {
             UserAPI.edit(
                 {users: [{name: 'newname', password: 'newpassword'}]}, _.extend({}, context.author, {id: userIdFor.author})
             ).then(function () {
-                return ModelUser.User.findOne({id: userIdFor.author}).then(function (response) {
+                return models.User.findOne({id: userIdFor.author}).then(function (response) {
                     response.get('name').should.eql('newname');
                     response.get('password').should.not.eql('newpassword');
                     done();
@@ -496,10 +495,6 @@ describe('Users API', function () {
 
         beforeEach(function () {
             newUser = _.clone(testUtils.DataGenerator.forKnex.createUser(testUtils.DataGenerator.Content.users[4]));
-
-            sandbox.stub(ModelUser.User, 'gravatarLookup', function (userData) {
-                return Promise.resolve(userData);
-            });
 
             sandbox.stub(mail, 'send', function () {
                 return Promise.resolve();
@@ -515,7 +510,7 @@ describe('Users API', function () {
             should.not.exist(response.meta);
             response.users.should.have.length(1);
             testUtils.API.checkResponse(response.users[0], 'user', ['roles']);
-            response.users[0].created_at.should.be.a.Date;
+            response.users[0].created_at.should.be.an.instanceof(Date);
         }
 
         describe('Owner', function () {
@@ -704,7 +699,7 @@ describe('Users API', function () {
             should.not.exist(response.meta);
             response.users.should.have.length(1);
             testUtils.API.checkResponse(response.users[0], 'user');
-            response.users[0].created_at.should.be.a.Date;
+            response.users[0].created_at.should.be.an.instanceof(Date);
         }
 
         describe('Owner', function () {
@@ -851,7 +846,7 @@ describe('Users API', function () {
             response.users.should.have.length(1);
             testUtils.API.checkResponse(response.users[0], 'user', ['roles']);
             response.users[0].name.should.equal(newName);
-            response.users[0].updated_at.should.be.a.Date;
+            response.users[0].updated_at.should.be.an.instanceof(Date);
         }
 
         it('throws an error if there is an id mismatch', function (done) {

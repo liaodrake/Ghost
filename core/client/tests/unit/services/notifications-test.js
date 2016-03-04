@@ -6,8 +6,10 @@ import {
     describeModule,
     it
 } from 'ember-mocha';
+import {AjaxError, InvalidError} from 'ember-ajax/errors';
 
 const {run, get} = Ember;
+const emberA = Ember.A;
 
 describeModule(
     'service:notifications',
@@ -18,12 +20,12 @@ describeModule(
     },
     function () {
         beforeEach(function () {
-            this.subject().set('content', Ember.A());
-            this.subject().set('delayedNotifications', Ember.A());
+            this.subject().set('content', emberA());
+            this.subject().set('delayedNotifications', emberA());
         });
 
         it('filters alerts/notifications', function () {
-            var notifications = this.subject();
+            const notifications = this.subject();
 
             // wrapped in run-loop to enure alerts/notifications CPs are updated
             run(() => {
@@ -39,8 +41,8 @@ describeModule(
         });
 
         it('#handleNotification deals with DS.Notification notifications', function () {
-            var notifications = this.subject(),
-                notification = Ember.Object.create({message: '<h1>Test</h1>', status: 'alert'});
+            const notifications = this.subject();
+            let notification = Ember.Object.create({message: '<h1>Test</h1>', status: 'alert'});
 
             notification.toJSON = function () {};
 
@@ -53,7 +55,7 @@ describeModule(
         });
 
         it('#handleNotification defaults to notification if no status supplied', function () {
-            var notifications = this.subject();
+            const notifications = this.subject();
 
             notifications.handleNotification({message: 'Test'}, false);
 
@@ -62,7 +64,7 @@ describeModule(
         });
 
         it('#showAlert adds POJO alerts', function () {
-            var notifications = this.subject();
+            const notifications = this.subject();
 
             run(() => {
                 notifications.showAlert('Test Alert', {type: 'error'});
@@ -73,7 +75,7 @@ describeModule(
         });
 
         it('#showAlert adds delayed notifications', function () {
-            var notifications = this.subject();
+            const notifications = this.subject();
 
             run(() => {
                 notifications.showNotification('Test Alert', {type: 'error', delayed: true});
@@ -87,7 +89,7 @@ describeModule(
         // we split on the second period and treat the resulting base as
         // the key for duplicate checking
         it('#showAlert clears duplicates', function () {
-            var notifications = this.subject();
+            const notifications = this.subject();
 
             run(() => {
                 notifications.showAlert('Kept');
@@ -105,7 +107,7 @@ describeModule(
         });
 
         it('#showNotification adds POJO notifications', function () {
-            var notifications = this.subject();
+            const notifications = this.subject();
 
             run(() => {
                 notifications.showNotification('Test Notification', {type: 'success'});
@@ -116,7 +118,7 @@ describeModule(
         });
 
         it('#showNotification adds delayed notifications', function () {
-            var notifications = this.subject();
+            const notifications = this.subject();
 
             run(() => {
                 notifications.showNotification('Test Notification', {delayed: true});
@@ -127,7 +129,7 @@ describeModule(
         });
 
         it('#showNotification clears existing notifications', function () {
-            var notifications = this.subject();
+            const notifications = this.subject();
 
             run(() => {
                 notifications.showNotification('First');
@@ -140,7 +142,7 @@ describeModule(
         });
 
         it('#showNotification keeps existing notifications if doNotCloseNotifications option passed', function () {
-            var notifications = this.subject();
+            const notifications = this.subject();
 
             run(() => {
                 notifications.showNotification('First');
@@ -152,7 +154,7 @@ describeModule(
 
         // TODO: review whether this can be removed once it's no longer used by validations
         it('#showErrors adds multiple notifications', function () {
-            var notifications = this.subject();
+            const notifications = this.subject();
 
             run(() => {
                 notifications.showErrors([
@@ -168,11 +170,11 @@ describeModule(
         });
 
         it('#showAPIError adds single json response error', function () {
-            var notifications = this.subject(),
-                resp = {jqXHR: {responseJSON: {error: 'Single error'}}};
+            const notifications = this.subject();
+            const error = new AjaxError('Single error');
 
             run(() => {
-                notifications.showAPIError(resp);
+                notifications.showAPIError(error);
             });
 
             let notification = notifications.get('alerts.firstObject');
@@ -184,11 +186,11 @@ describeModule(
 
         // used to display validation errors returned from the server
         it('#showAPIError adds multiple json response errors', function () {
-            var notifications = this.subject(),
-                resp = {jqXHR: {responseJSON: {errors: ['First error', 'Second error']}}};
+            const notifications = this.subject();
+            const error = new AjaxError(['First error', 'Second error']);
 
             run(() => {
-                notifications.showAPIError(resp);
+                notifications.showAPIError(error);
             });
 
             expect(notifications.get('notifications')).to.deep.equal([
@@ -197,31 +199,17 @@ describeModule(
             ]);
         });
 
-        it('#showAPIError adds single json response message', function () {
-            var notifications = this.subject(),
-                resp = {jqXHR: {responseJSON: {message: 'Single message'}}};
-
-            run(() => {
-                notifications.showAPIError(resp);
-            });
-
-            let notification = notifications.get('alerts.firstObject');
-            expect(get(notification, 'message')).to.equal('Single message');
-            expect(get(notification, 'status')).to.equal('alert');
-            expect(get(notification, 'type')).to.equal('error');
-            expect(get(notification, 'key')).to.equal('api-error');
-        });
-
         it('#showAPIError displays default error text if response has no error/message', function () {
-            var notifications = this.subject(),
-                resp = {};
+            const notifications = this.subject();
+            const resp = false;
 
             run(() => { notifications.showAPIError(resp); });
+
             expect(notifications.get('content')).to.deep.equal([
                 {message: 'There was a problem on the server, please try again.', status: 'alert', type: 'error', key: 'api-error'}
             ]);
 
-            notifications.set('content', Ember.A());
+            notifications.set('content', emberA());
 
             run(() => {
                 notifications.showAPIError(resp, {defaultErrorText: 'Overridden default'});
@@ -232,7 +220,7 @@ describeModule(
         });
 
         it('#showAPIError sets correct key when passed a base key', function () {
-            var notifications = this.subject();
+            const notifications = this.subject();
 
             run(() => {
                 notifications.showAPIError('Test', {key: 'test.alert'});
@@ -242,7 +230,7 @@ describeModule(
         });
 
         it('#showAPIError sets correct key when not passed a key', function () {
-            var notifications = this.subject();
+            const notifications = this.subject();
 
             run(() => {
                 notifications.showAPIError('Test');
@@ -251,8 +239,23 @@ describeModule(
             expect(notifications.get('alerts.firstObject.key')).to.equal('api-error');
         });
 
+        it('#showAPIError parses errors from ember-ajax correctly', function () {
+            const notifications = this.subject();
+            const error = new InvalidError('Test Error');
+
+            run(() => {
+                notifications.showAPIError(error);
+            });
+
+            let notification = notifications.get('alerts.firstObject');
+            expect(get(notification, 'message')).to.equal('Test Error');
+            expect(get(notification, 'status')).to.equal('alert');
+            expect(get(notification, 'type')).to.equal('error');
+            expect(get(notification, 'key')).to.equal('api-error');
+        });
+
         it('#displayDelayed moves delayed notifications into content', function () {
-            var notifications = this.subject();
+            const notifications = this.subject();
 
             run(() => {
                 notifications.showNotification('First', {delayed: true});
@@ -269,8 +272,8 @@ describeModule(
         });
 
         it('#closeNotification removes POJO notifications', function () {
-            var notification = {message: 'Close test', status: 'notification'},
-                notifications = this.subject();
+            const notification = {message: 'Close test', status: 'notification'};
+            const notifications = this.subject();
 
             run(() => {
                 notifications.handleNotification(notification);
@@ -288,15 +291,17 @@ describeModule(
         });
 
         it('#closeNotification removes and deletes DS.Notification records', function () {
-            var notification = Ember.Object.create({message: 'Close test', status: 'alert'}),
-                notifications = this.subject();
+            const notification = Ember.Object.create({message: 'Close test', status: 'alert'});
+            const notifications = this.subject();
 
             notification.toJSON = function () {};
             notification.deleteRecord = function () {};
             sinon.spy(notification, 'deleteRecord');
             notification.save = function () {
                 return {
-                    finally: function (callback) { return callback(notification); }
+                    finally(callback) {
+                        return callback(notification);
+                    }
                 };
             };
             sinon.spy(notification, 'save');
@@ -314,7 +319,7 @@ describeModule(
         });
 
         it('#closeNotifications only removes notifications', function () {
-            var notifications = this.subject();
+            const notifications = this.subject();
 
             run(() => {
                 notifications.showAlert('First alert');
@@ -332,7 +337,7 @@ describeModule(
         });
 
         it('#closeNotifications only closes notifications with specified key', function () {
-            var notifications = this.subject();
+            const notifications = this.subject();
 
             run(() => {
                 notifications.showAlert('First alert');
@@ -354,15 +359,17 @@ describeModule(
         });
 
         it('#clearAll removes everything without deletion', function () {
-            var notifications = this.subject(),
-                notificationModel = Ember.Object.create({message: 'model'});
+            const notifications = this.subject();
+            const notificationModel = Ember.Object.create({message: 'model'});
 
             notificationModel.toJSON = function () {};
             notificationModel.deleteRecord = function () {};
             sinon.spy(notificationModel, 'deleteRecord');
             notificationModel.save = function () {
                 return {
-                    finally: function (callback) { return callback(notificationModel); }
+                    finally(callback) {
+                        return callback(notificationModel);
+                    }
                 };
             };
             sinon.spy(notificationModel, 'save');
@@ -378,7 +385,7 @@ describeModule(
         });
 
         it('#closeAlerts only removes alerts', function () {
-            var notifications = this.subject();
+            const notifications = this.subject();
 
             notifications.showNotification('First notification');
             notifications.showAlert('First alert');
@@ -393,7 +400,7 @@ describeModule(
         });
 
         it('#closeAlerts closes only alerts with specified key', function () {
-            var notifications = this.subject();
+            const notifications = this.subject();
 
             notifications.showNotification('First notification');
             notifications.showAlert('First alert', {key: 'test.close'});

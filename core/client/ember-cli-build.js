@@ -1,3 +1,4 @@
+/* jscs:disable */
 /* global require, module */
 
 var EmberApp = require('ember-cli/lib/broccoli/ember-app'),
@@ -16,6 +17,10 @@ assetLocation = function (fileName) {
 
 module.exports = function (defaults) {
     var app = new EmberApp(defaults, {
+        babel: {
+            optional: ['es6.spec.symbols'],
+            includePolyfill: true
+        },
         outputPaths: {
             app: {
                 js: assetLocation('ghost.js')
@@ -69,8 +74,8 @@ module.exports = function (defaults) {
     app.import('bower_components/blueimp-md5/js/md5.js');
 
     if (app.env === 'test') {
-        app.import('bower_components/jquery.simulate.drag-sortable/jquery.simulate.drag-sortable.js');
-        app.import('bower_components/jquery-deparam/jquery-deparam.js');
+        app.import(app.bowerDirectory + '/jquery.simulate.drag-sortable/jquery.simulate.drag-sortable.js', {type: 'test'});
+        app.import(app.bowerDirectory + '/jquery-deparam/jquery-deparam.js', {type: 'test'});
     }
 
     // 'dem Styles

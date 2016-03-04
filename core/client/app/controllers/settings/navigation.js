@@ -3,37 +3,56 @@ import DS from 'ember-data';
 import SettingsSaveMixin from 'ghost/mixins/settings-save';
 import ValidationEngine from 'ghost/mixins/validation-engine';
 
+const {
+    Controller,
+    RSVP,
+    computed,
+    inject: {service},
+    isBlank
+} = Ember;
+const {Errors} = DS;
+const emberA = Ember.A;
+
 export const NavItem = Ember.Object.extend(ValidationEngine, {
     label: '',
     url: '',
-    last: false,
+    isNew: false,
 
     validationType: 'navItem',
 
-    isComplete: Ember.computed('label', 'url', function () {
-        return !(Ember.isBlank(this.get('label').trim()) || Ember.isBlank(this.get('url')));
+    isComplete: computed('label', 'url', function () {
+        let {label, url} = this.getProperties('label', 'url');
+
+        return !isBlank(label) && !isBlank(url);
     }),
 
-    init: function () {
+    isBlank: computed('label', 'url', function () {
+        let {label, url} = this.getProperties('label', 'url');
+
+        return isBlank(label) && isBlank(url);
+    }),
+
+    init() {
         this._super(...arguments);
-        this.set('errors', DS.Errors.create());
-        this.set('hasValidated', Ember.A());
+        this.set('errors', Errors.create());
+        this.set('hasValidated', emberA());
     }
 });
 
-export default Ember.Controller.extend(SettingsSaveMixin, {
-    config: Ember.inject.service(),
-    notifications: Ember.inject.service(),
+export default Controller.extend(SettingsSaveMixin, {
+    config: service(),
+    notifications: service(),
 
-    blogUrl: Ember.computed('config.blogUrl', function () {
-        var url = this.get('config.blogUrl');
+    newNavItem: null,
 
-        return url.slice(-1) !== '/' ? url + '/' : url;
+    blogUrl: computed('config.blogUrl', function () {
+        let url = this.get('config.blogUrl');
+
+        return url.slice(-1) !== '/' ? `${url}/` : url;
     }),
 
-    navigationItems: Ember.computed('model.navigation', function () {
-        var navItems,
-            lastItem;
+    navigationItems: computed('model.navigation', function () {
+        let navItems;
 
         try {
             navItems = JSON.parse(this.get('model.navigation') || [{}]);
@@ -41,101 +60,97 @@ export default Ember.Controller.extend(SettingsSaveMixin, {
             navItems = [{}];
         }
 
-        navItems = navItems.map(function (item) {
+        navItems = navItems.map((item) => {
             return NavItem.create(item);
         });
-
-        lastItem = navItems.get('lastObject');
-        if (!lastItem || lastItem.get('isComplete')) {
-            navItems.addObject(NavItem.create({last: true}));
-        }
 
         return navItems;
     }),
 
-    updateLastNavItem: Ember.observer('navigationItems.[]', function () {
-        var navItems = this.get('navigationItems');
+    init() {
+        this._super(...arguments);
+        this.set('newNavItem', NavItem.create({isNew: true}));
+    },
 
-        navItems.forEach(function (item, index, items) {
-            if (index === (items.length - 1)) {
-                item.set('last', true);
-            } else {
-                item.set('last', false);
-            }
-        });
-    }),
+    save() {
+        let navItems = this.get('navigationItems');
+        let newNavItem = this.get('newNavItem');
+        let notifications = this.get('notifications');
+        let validationPromises = [];
+        let navSetting;
 
-    save: function () {
-        var navSetting,
-            navItems = this.get('navigationItems'),
-            notifications = this.get('notifications'),
-            validationPromises,
-            self = this;
+        if (!newNavItem.get('isBlank')) {
+            validationPromises.pushObject(this.send('addItem'));
+        }
 
-        validationPromises = navItems.map(function (item) {
-            return item.validate();
+        navItems.map((item) => {
+            validationPromises.pushObject(item.validate());
         });
 
-        return Ember.RSVP.all(validationPromises).then(function () {
-            navSetting = navItems.map(function (item) {
-                var label = item.get('label').trim(),
-                    url = item.get('url').trim();
+        return RSVP.all(validationPromises).then(() => {
+            navSetting = navItems.map((item) => {
+                let label = item.get('label').trim();
+                let url = item.get('url').trim();
 
-                if (item.get('last') && !item.get('isComplete')) {
-                    return null;
-                }
-
-                return {label: label, url: url};
+                return {label, url};
             }).compact();
 
-            self.set('model.navigation', JSON.stringify(navSetting));
+            this.set('model.navigation', JSON.stringify(navSetting));
 
             // trigger change event because even if the final JSON is unchanged
             // we need to have navigationItems recomputed.
-            self.get('model').notifyPropertyChange('navigation');
+            this.get('model').notifyPropertyChange('navigation');
 
-            return self.get('model').save().catch(function (err) {
+            return this.get('model').save().catch((err) => {
                 notifications.showErrors(err);
             });
-        }).catch(function () {
+        }).catch(() => {
             // TODO: noop - needed to satisfy spinner button
         });
     },
 
-    actions: {
-        addItem: function () {
-            var navItems = this.get('navigationItems'),
-                lastItem = navItems.get('lastObject');
+    addNewNavItem() {
+        let navItems = this.get('navigationItems');
+        let newNavItem = this.get('newNavItem');
 
-            if (lastItem && lastItem.get('isComplete')) {
-                navItems.addObject(NavItem.create({last: true})); // Adds new blank navItem
-            }
+        newNavItem.set('isNew', false);
+        navItems.pushObject(newNavItem);
+        this.set('newNavItem', NavItem.create({isNew: true}));
+    },
+
+    actions: {
+        addItem() {
+            let newNavItem = this.get('newNavItem');
+
+            return newNavItem.validate().then(() => {
+                this.addNewNavItem();
+            });
         },
 
-        deleteItem: function (item) {
+        deleteItem(item) {
             if (!item) {
                 return;
             }
 
-            var navItems = this.get('navigationItems');
+            let navItems = this.get('navigationItems');
 
             navItems.removeObject(item);
         },
 
-        moveItem: function (index, newIndex) {
-            var navItems = this.get('navigationItems'),
-                item = navItems.objectAt(index);
-
-            navItems.removeAt(index);
-            navItems.insertAt(newIndex, item);
+        reorderItems(navItems) {
+            this.set('navigationItems', navItems);
         },
 
-        updateUrl: function (url, navItem) {
+        updateUrl(url, navItem) {
             if (!navItem) {
                 return;
             }
 
             navItem.set('url', url);
+        },
+
+        reset() {
+            this.set('newNavItem', NavItem.create({isNew: true}));
         }
     }
 });

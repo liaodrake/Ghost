@@ -1,43 +1,47 @@
+/* jscs:disable requireCamelCaseOrUpperCaseIdentifiers */
 import Ember from 'ember';
 import DS from 'ember-data';
 import ApplicationSerializer from 'ghost/serializers/application';
 
-export default ApplicationSerializer.extend(DS.EmbeddedRecordsMixin, {
+const {EmbeddedRecordsMixin} = DS;
+
+export default ApplicationSerializer.extend(EmbeddedRecordsMixin, {
     // settings for the EmbeddedRecordsMixin.
     attrs: {
         tags: {embedded: 'always'}
     },
 
-    normalize: function (typeClass, hash, prop) {
-        // this is to enable us to still access the raw author_id
+    normalizeHash: {
+        // this is to enable us to still access the raw authorId
         // without requiring an extra get request (since it is an
         // async relationship).
-        hash.author_id = hash.author;
-
-        return this._super(typeClass, hash, prop);
+        posts(hash) {
+            hash.author_id = hash.author;
+            return hash;
+        }
     },
 
-    normalizeSingleResponse: function (store, primaryModelClass, payload) {
-        var root = this.keyForAttribute(primaryModelClass.modelName),
-            pluralizedRoot = Ember.String.pluralize(primaryModelClass.modelName);
+    normalizeSingleResponse(store, primaryModelClass, payload) {
+        let root = this.keyForAttribute(primaryModelClass.modelName);
+        let pluralizedRoot = Ember.String.pluralize(primaryModelClass.modelName);
 
         payload[root] = payload[pluralizedRoot][0];
         delete payload[pluralizedRoot];
 
-        return this._super.apply(this, arguments);
+        return this._super(...arguments);
     },
 
-    normalizeArrayResponse: function () {
-        return this._super.apply(this, arguments);
+    normalizeArrayResponse() {
+        return this._super(...arguments);
     },
 
-    serializeIntoHash: function (hash, type, record, options) {
+    serializeIntoHash(hash, type, record, options) {
         options = options || {};
         options.includeId = true;
 
         // We have a plural root in the API
-        var root = Ember.String.pluralize(type.modelName),
-            data = this.serialize(record, options);
+        let root = Ember.String.pluralize(type.modelName);
+        let data = this.serialize(record, options);
 
         // Properties that exist on the model but we don't want sent in the payload
 
